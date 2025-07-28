@@ -15,10 +15,6 @@ class DocumentEntry {
 	/** @type {string} */
 	parent
 	/** @type {boolean} */
-	isDirectory
-	/** @type {boolean} */
-	isFile
-	/** @type {boolean} */
 	fulfilled
 
 	/**
@@ -28,6 +24,7 @@ class DocumentEntry {
 	 * @param {number} input.depth
 	 * @param {string} input.path
 	 * @param {string} [input.parent]
+	 * @param {boolean} [input.fulfilled]
 	 */
 	constructor(input = {}) {
 		const {
@@ -36,8 +33,6 @@ class DocumentEntry {
 			depth = 0,
 			path = "",
 			parent = "",
-			isDirectory = false,
-			isFile = false,
 			fulfilled = false
 		} = input
 
@@ -46,13 +41,33 @@ class DocumentEntry {
 		this.depth = Number(depth)
 		this.path = String(path)
 		this.parent = String(parent)
-		this.isDirectory = Boolean(isDirectory)
-		this.isFile = Boolean(isFile)
 		this.fulfilled = Boolean(fulfilled)
 
 		if (!this.name && this.path) {
 			this.name = this.path.split("/").pop()
 		}
+	}
+
+	get isDirectory() {
+		return !!this.stat.isDirectory
+	}
+
+	get isFile() {
+		return !!this.stat.isFile
+	}
+
+	get isSymbolicLink() {
+		return !!this.stat.isSymbolicLink
+	}
+
+	toString() {
+		return [
+			this.isDirectory ? "D"
+				: this.isFile ? "F"
+					: this.stat.isSymbolicLink ? "L"
+						: "?",
+			this.path || this.name
+		].filter(Boolean).join(" ")
 	}
 
 	/**
