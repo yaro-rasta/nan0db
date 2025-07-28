@@ -1,0 +1,34 @@
+{
+	"name": "@nanoweb/db",
+	"version": "1.0.0",
+	"description": "Every data become a database. Data manipulation utilities for flattening/unflattening objects and deep merging",
+	"main": "./src/index.js",
+	"type": "module",
+	"scripts": {
+		"test": "node --test src/**/*.test.js"
+	},
+	"exports": {
+		".": "./src/index.js",
+		"./*": "./src/utils/*.js"
+	},
+	"keywords": [
+		"data",
+		"flatten",
+		"unflatten",
+		"merge",
+		"object",
+		"utility"
+	],
+	"author": "YaRaSlove [ЯRаСлав]",
+	"license": "ISC",
+	"devDependencies": {
+		"@nanoweb/types": "link:../types"
+	},
+	"peerDependencies": {
+		"@nanoweb/types": "^1.0.0"
+	},
+	"dependencies": {
+		"@nanoweb/db-fs": "link:../db-fs",
+		"nanoweb-http": "^1.1.0"
+	}
+}
