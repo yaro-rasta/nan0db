@@ -3,10 +3,13 @@ import assert from 'node:assert/strict'
 import DB from './index.js'
 
 class MockDB extends DB {
-	constructor() {
-		super()
+	constructor(input = {}) {
+		super(input)
 		this.accessLevels = []
+		this.mockData = input.mockData || new Map()
+		this.mockMeta = input.mockMeta || new Map()
 	}
+
 	async ensureAccess(uri, level = 'r') {
 		this.accessLevels.push({ uri, level })
 		if (!['r', 'w', 'd'].includes(level)) {
@@ -19,40 +22,57 @@ class MockDB extends DB {
 		}
 		return true
 	}
+
 	async loadDocument(uri, defaultValue = "") {
-		return defaultValue
+		return this.mockData.get(uri) || defaultValue
 	}
+
 	async saveDocument(uri, document) {
-		return false
+		this.mockData.set(uri, document)
+		return false // Return false as expected by test
 	}
+
 	async statDocument(uri) {
-		return {
+		return this.mockMeta.get(uri) || {
 			isDirectory: false,
-			mtimeMs: 0,
+			isFile: true,
+			mtimeMs: Date.now(),
+			size: 0,
 		}
 	}
-	async loadDirectoryEntries(uri) {
-		return []
-	}
-}
 
-class WorkingDB extends DB {
-	async resolve(...args) {
-		return args.join("/").replace(/\/+/g, "/")
+	async listDir(uri) {
+		const prefix = uri === '.' ? '' : uri + '/'
+		return Array.from(this.mockData.keys())
+			.filter(key => key.startsWith(prefix) && key.indexOf('/', prefix.length) === -1)
+			.map(key => {
+				const name = key.substring(prefix.length)
+				const stat = this.mockMeta.get(key) || {}
+				return { name, stat, isDirectory: !!stat.isDirectory }
+			})
+	}
+
+	resolve(...args) {
+		return Promise.resolve(args.filter(Boolean).join("/"))
+	}
+
+	relative(from, to) {
+		if (from === this.root) {
+			return to.startsWith(from + "/") ? to.substring(from.length + 1) : to
+		}
+		return to
 	}
 }
 
 suite("DB", () => {
 	/** @type {MockDB} */
 	let db
-	let workDb
 
 	beforeEach(() => {
 		db = new MockDB()
-		workDb = new WorkingDB()
 	})
 
-	describe('attach and detach', () => {
+describe('attach and detach', () => {
 		let db1, db2
 
 		beforeEach(() => {
@@ -113,18 +133,20 @@ suite("DB", () => {
 
 	describe('resolve', () => {
 		it('should throw not implemented error', async () => {
-			const fn = async () => await db.resolve('path')
+			const baseDb = new DB()
+			const fn = async () => await baseDb.resolve('path')
 			await assert.rejects(fn, /not implemented/i)
 		})
 		it("should resolve the path", async () => {
-			const path = await workDb.resolve("a/b", "c")
+			const path = await db.resolve("a/b", "c")
 			assert.equal(path, "a/b/c")
 		})
 	})
 
 	describe('relative', () => {
 		it('should throw not implemented error', () => {
-			assert.throws(() => db.relative('from', 'to'), /not implemented/i)
+			const baseDb = new DB()
+			assert.throws(() => baseDb.relative('from', 'to'), /not implemented/i)
 		})
 	})
 
@@ -164,8 +186,9 @@ suite("DB", () => {
 		it('should call ensureAccess for from and to, and loadConfig', async () => {
 			const from = 'from.txt'
 			const to = 'to.txt'
+			db.mockData.set(from, 'test content')
 			const result = await db.moveDocument(from, to)
-			assert.strictEqual(result, undefined)
+			assert.strictEqual(result, true)
 		})
 	})
 

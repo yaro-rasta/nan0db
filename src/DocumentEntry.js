@@ -19,10 +19,10 @@ class DocumentEntry {
 
 	/**
 	 * @param {object} input
-	 * @param {string} input.name
-	 * @param {DocumentStat} input.stat
-	 * @param {number} input.depth
-	 * @param {string} input.path
+	 * @param {string} [input.name]
+	 * @param {DocumentStat|object} [input.stat]
+	 * @param {number} [input.depth]
+	 * @param {string} [input.path]
 	 * @param {string} [input.parent]
 	 * @param {boolean} [input.fulfilled]
 	 */
@@ -64,7 +64,7 @@ class DocumentEntry {
 		return [
 			this.isDirectory ? "D"
 				: this.isFile ? "F"
-					: this.stat.isSymbolicLink ? "L"
+					: this.isSymbolicLink ? "L"
 						: "?",
 			this.path || this.name
 		].filter(Boolean).join(" ")

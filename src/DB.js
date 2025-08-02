@@ -19,12 +19,21 @@ class DB {
 	dbs
 
 	/**
+	 * Creates a new DB instance from input object
+	 * that can include configuration for:
+	 * - root directory,
+	 * - working directory,
+	 * - data and metadata maps,
+	 * - connection status,
+	 * - attached databases.
+	 *
 	 * @param {object} input
 	 * @param {string} [input.root="."]
 	 * @param {string} [input.cwd="."]
 	 * @param {boolean} [input.connected=false]
 	 * @param {Map<string, DocumentEntry>} [input.data=new Map()]
 	 * @param {Map<string, DocumentStat>} [input.meta=new Map()]
+	 * @param {DB[]} [input.dbs=[]]
 	 */
 	constructor(input = {}) {
 		const {
@@ -40,9 +49,27 @@ class DB {
 		this.data = data instanceof Map ? data : new Map(data)
 		this.meta = meta instanceof Map ? meta : new Map(meta)
 		this.connected = connected
-		this.dbs = dbs
+		// Ensure that we have DB instances in the array
+		// For the base it is always [], so it is safe to reassign
+		// But for sub databases it must be initialized to array of DBs
+		// So to always have DBs under this constructor
+		// This is the part of the structure to support multiple DBs connected to the same base
+		// See fetchDB for details, it is base DB for remote access over fetch
+		// And DB is base local storage interface
+		// Then attach another DB instances, that will be initialized with the root
+		this.dbs = dbs.map(from => DB.from(from))
+		if (!this.dbs.every(d => d instanceof DB)) {
+			throw new Error("Not all items in dbs are DB instances")
+		}
 	}
 
+	/**
+	 * @returns {boolean}
+	 * Returns state of ?loaded marker in meta Map
+	 * After .connect() and .readDir() the marker is placed as {mtime: true}
+	 * Because we can load only once when depth=0, and every subsequent .readBranch() is depth>0
+	 * and works with fully loaded DocumentEntry or DocumentStat data
+	 */
 	get loaded() {
 		return this.meta.has("?loaded")
 	}
@@ -81,6 +108,8 @@ class DB {
 	}
 
 	/**
+	 * Extracts file extension with leading dot from URI
+	 * For example 'file.txt' -> '.txt'
 	 * @param {string} uri
 	 * @returns {string}
 	 */
@@ -90,10 +119,12 @@ class DB {
 	}
 
 	/**
-	 * @note Must be overwritten by platform specific application.
-	 * @throws
-	 * @param {string} uri
-	 * @returns {Promise<string>}
+	 * Relative path resolver for file systems.
+	 * Must be implemented by platform specific code
+	 * @throws Not implemented in base class
+	 * @param {string} from Base directory path
+	 * @param {string} to Target directory path
+	 * @returns {string} Relative path
 	 */
 	relative(from, to) {
 		throw new Error("Not implemented")
@@ -107,11 +138,14 @@ class DB {
 	 * Reading the current directory or branch as async generator to follow progress.
 	 * For FetchDB it is loading of "index.txt" or "manifest.json".
 	 * For NodeFsDB it is loading readdirSync in a conditional recursion.
+	 * @async
+	 * @generator
 	 * @param {string} uri
 	 * @param {object} options
-	 * @param {number} [options.depth=0]
-	 * @param {boolean} [options.skipStat=false]
-	 * @returns {AsyncGenerator<DocumentEntry>}
+	 * @param {number} [options.depth=0] Depth to read recursively
+	 * @param {boolean} [options.skipStat=false] Skip collecting statistics
+	 * @param {boolean} [options.skipSymbolicLink=false] Skip symbolic links
+	 * @param {Function} [options.filter=identity] Filter by pattern or callback
 	 */
 	async *readDir(uri = ".", options = {}) {
 		const {
@@ -166,7 +200,7 @@ class DB {
 	}
 
 	async readBranch(uri, depth = -1) {
-		return this.readDir(uri, depth)
+		return this.readDir(uri, { depth })
 	}
 
 	async requireConnected() {
@@ -186,7 +220,7 @@ class DB {
 		await this.requireConnected()
 		if (!this.loaded) {
 			for await (const _ of this.readDir(this.root)) {
-				yield* this.readDir(this.root, depth + 1)
+				yield* this.readDir(this.root, { depth: depth + 1 })
 			}
 			this.meta.set("?loaded", true)
 		}
@@ -202,7 +236,12 @@ class DB {
 			}
 		}
 	}
-
+	/**
+	 * Connect to database
+	 * @abstract
+	 * @returns {Promise<void>}
+	 * Platform specific implementation of connecting to the database
+	 */
 	async connect() {
 		this.connected = true
 	}
@@ -250,6 +289,7 @@ class DB {
 	resolve(...args) {
 		throw new Error("Not implemented")
 	}
+
 	/**
 	 * Returns the absolute path of the resolved path.
 	 * @note Must be overwritten by platform specific application.
@@ -275,7 +315,7 @@ class DB {
 	 * @note Must be overwritten by platform specific application.
 	 * @throws
 	 * @param {string} uri
-	 * @returns {boolean}
+	 * @returns {Promise<boolean>}
 	 */
 	async saveDocument(uri, document) {
 		await this.ensureAccess(uri, "w")
@@ -295,7 +335,7 @@ class DB {
 	 * Writes a chunk of data to a document.
 	 * @param {string} uri
 	 * @param {string} chunk
-	 * @returns {boolean}
+	 * @returns {Promise<boolean>}
 	 */
 	async writeDocument(uri, chunk) {
 		await this.ensureAccess(uri, "w")
@@ -303,10 +343,13 @@ class DB {
 	}
 
 	/**
-	 * @note Must be overwritten by platform specific application.
-	 * @throws
+	 * Delete document from storage
+	 * @note Must be overwritten by platform specific application
 	 * @param {string} uri
-	 * @returns {boolean}
+	 * @param {string} [level='w'] Access level
+	 * @returns {Promise<boolean>}
+	 * Always returns false for base implementation not knowing
+	 * to implement delete on top of generic interface
 	 */
 	async dropDocument(uri) {
 		await this.ensureAccess(uri, "d")
@@ -331,7 +374,11 @@ class DB {
 		}
 		return true
 	}
-
+	/**
+	 * Synchronize data with persistent storage
+	 * @param {string|undefined} [uri] Optional specific URI to save
+	 * @returns {Promise<string[]>} Array of saved URIs
+	 */
 	async push(uri = null) {
 		if (uri) {
 			await this.ensureAccess(uri, "w")
@@ -352,22 +399,35 @@ class DB {
 		return changed
 	}
 
+	/**
+	 * @param {string} from
+	 * @param {string} to
+	 * @returns {Promise<boolean>}
+	 */
 	async moveDocument(from, to) {
 		await this.ensureAccess(to, "w")
 		await this.ensureAccess(from, "r")
 		const data = await this.get(from)
 		await this.saveDocument(to, data)
+		return true
 	}
 
+	/**
+	 * @returns {Promise<void>}
+	 */
 	async disconnect() {
 		this.connected = false
 	}
 
 	/**
 	 * @param {string} uri
+	 * @param {Object} options
+	 * @param {number} [options.depth]
+	 * @param {boolean} [options.skipStat]
+	 * @param {boolean} [options.skipSymbolicLink]
 	 * @returns {Promise<{name: string, isDirectory: boolean}[]>}
 	 */
-	async listDir(uri, { depth = 0, skipStat = false } = {}) {
+	async listDir(uri, { depth = 0, skipStat = false, skipSymbolicLink = false } = {}) {
 		throw new Error("Not implemented")
 	}
 
@@ -384,7 +444,7 @@ class DB {
 	 */
 	async *findStream(uri, options = {}) {
 		const {
-			filter = (uri) => true,
+			filter = () => true,
 			limit = -1,
 			sort = "name",
 			order = "asc",

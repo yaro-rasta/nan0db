@@ -13,17 +13,18 @@ describe('DocumentEntry', () => {
 		assert.strictEqual(entry.isDirectory, false)
 		assert.strictEqual(entry.isFile, false)
 		assert.strictEqual(entry.fulfilled, false)
+		assert.strictEqual(entry.isSymbolicLink, false)
 	})
 
 	it('should set properties from constructor', () => {
-		const stat = new DocumentStat({ size: 100 })
+		const stat = new DocumentStat({ size: 100, isFile: true })
 		const entry = new DocumentEntry({
 			name: 'test.txt',
 			stat,
 			depth: 1,
 			path: '/path/to/test.txt',
 			parent: '/path/to',
-			isFile: true
+			fulfilled: true
 		})
 
 		assert.strictEqual(entry.name, 'test.txt')
@@ -33,6 +34,7 @@ describe('DocumentEntry', () => {
 		assert.strictEqual(entry.parent, '/path/to')
 		assert.strictEqual(entry.isFile, true)
 		assert.strictEqual(entry.isDirectory, false)
+		assert.strictEqual(entry.fulfilled, true)
 	})
 
 	it('should extract name from path if not provided', () => {

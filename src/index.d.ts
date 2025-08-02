@@ -86,6 +86,22 @@ declare module '@nanoweb/db' {
 		requireConnected(): Promise<void>;
 
 		/**
+		 * Writes data to a document with overwrite
+		 * @param {string} uri - Document URI
+		 * @param {string} chunk - Data to write
+		 * @returns {Promise<boolean>} Success
+		 */
+		writeDocument(uri: string, chunk: string): Promise<boolean>;
+
+		/**
+		 * Moves a document from one URI to another URI
+		 * @param {string} from - Source URI
+		 * @param {string} to - Target URI
+		 * @returns {Promise<boolean>} Success
+		 */
+		moveDocument(from: string, to: string): Promise<boolean>;
+
+		/**
 		 * Searches for URI matching condition
 		 * @param {string | ((key: string, value: any) => boolean)} uri - Search pattern or callback
 		 * @param {number} [depth=0] - Maximum depth to search
@@ -111,6 +127,11 @@ declare module '@nanoweb/db' {
 		absolute(...args: string[]): Promise<string>;
 
 		/**
+		 * Disconnect from database
+		 * @returns {Promise<void>}
+		 */
+		disconnect(): Promise<void>;
+		/**
 		 * Gets document statistics
 		 * @param {string} uri - Document URI
 		 * @returns {Promise<DocumentStat>}
@@ -119,8 +140,8 @@ declare module '@nanoweb/db' {
 
 		/**
 		 * Push changes to remote storage
-		 * @param {string} [uri] - Optional specific URI to push
-		 * @returns {Promise<string[]>}
+		 * @param {string|undefined} [uri] Optional specific URI to save
+		 * @returns {Promise<string[]>} Array of saved URIs
 		 */
 		push(uri?: string): Promise<string[]>;
 
@@ -140,6 +161,14 @@ declare module '@nanoweb/db' {
 		 * @returns {Promise<any>}
 		 */
 		loadDocument(uri: string, defaultValue?: any): Promise<any>;
+
+		/**
+		 * Saves a document
+		 * @param {string} uri - Document URI
+		 * @param {any} document - Document data.
+		 * @returns {Promise<boolean>}
+		 */
+		saveDocument(uri: string, document: any): Promise<boolean>;
 
 		/**
 		 * Push stream of progress state
@@ -162,7 +191,7 @@ declare module '@nanoweb/db' {
 			order?: 'asc' | 'desc',
 			skipStat?: boolean,
 			skipSymbolicLink?: boolean
-		 }): AsyncGenerator<StreamEntry, void, unknown>;
+		}): AsyncGenerator<StreamEntry, void, unknown>;
 
 		/**
 		 * Creates a new DB instance from properties if object provided
