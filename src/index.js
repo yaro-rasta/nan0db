@@ -5,8 +5,7 @@ import StreamEntry from "./StreamEntry.js"
 import Data from "./utils/data.js"
 
 export {
-	DocumentEntry, DocumentStat, DB, StreamEntry,
-	Data
+	DocumentEntry, DocumentStat, StreamEntry, Data, DB
 }
 
 export default DB

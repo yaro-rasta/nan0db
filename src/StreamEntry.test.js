@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import StreamEntry from './StreamEntry.js'
 import DocumentEntry from './DocumentEntry.js'
+import DocumentStat from './DocumentStat.js'
 
 describe('StreamEntry', () => {
 	it('should create instance with default values', () => {
@@ -16,7 +17,8 @@ describe('StreamEntry', () => {
 	})
 
 	it('should set properties from constructor', () => {
-		const file = new DocumentEntry({ name: 'test.txt' })
+		const stat = new DocumentStat({ size: 100, isFile: true })
+		const file = new DocumentEntry({ name: 'test.txt', stat })
 		const files = [file]
 		const dirs = new Map([['dir', file]])
 		const top = new Map([['top', file]])
@@ -49,5 +51,15 @@ describe('StreamEntry', () => {
 
 		assert.ok(entry.file instanceof DocumentEntry)
 		assert.ok(entry.files[0] instanceof DocumentEntry)
+	})
+	
+	it('should handle string representations', () => {
+		const fileEntry = new DocumentEntry({ name: 'file.txt', stat: { isFile: true } })
+		const dirEntry = new DocumentEntry({ name: 'directory', stat: { isDirectory: true } })
+		const linkEntry = new DocumentEntry({ name: 'link', stat: { isSymbolicLink: true } })
+		
+		assert.strictEqual(fileEntry.toString(), 'F file.txt')
+		assert.strictEqual(dirEntry.toString(), 'D directory')
+		assert.strictEqual(linkEntry.toString(), 'L link')
 	})
 })

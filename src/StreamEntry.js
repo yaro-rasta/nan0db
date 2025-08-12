@@ -12,22 +12,22 @@ class StreamEntry {
 	dirs
 	/** @type {Map<string, DocumentEntry>} */
 	top
-	/** @type {Map<string, string>} */
+	/** @type {Map<string, Error | null>} */
 	errors
 	/** @type {number} */
 	progress
-	/** @type {object} */
+	/** @type {{ dirs: number, files: number }} */
 	totalSize
 
 	/**
 	 * @param {object} input
-	 * @param {DocumentEntry} input.file
-	 * @param {DocumentEntry[]} input.files
-	 * @param {Map<string, DocumentEntry>} input.dirs
-	 * @param {Map<string, DocumentEntry>} input.top
-	 * @param {Map<string, string>} input.errors
-	 * @param {number} input.progress
-	 * @param {object} input.totalSize
+	 * @param {DocumentEntry|object} [input.file={}]
+	 * @param {DocumentEntry[]|object[]} [input.files=[]]
+	 * @param {Map<string, DocumentEntry>} [input.dirs=new Map()]
+	 * @param {Map<string, DocumentEntry>} [input.top=new Map()]
+	 * @param {Map<string, Error | null>} [input.errors=new Map()]
+	 * @param {number} [input.progress=0]
+	 * @param {{ dirs: number, files: number }} [input.totalSize={ dirs: 0, files: 0 }]
 	 */
 	constructor(input = {}) {
 		const {

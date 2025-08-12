@@ -28,7 +28,7 @@ And you can extract any of your branches to other databases `const extractedDb =
 ## API Overview
 
 ```js
-import DB from '@nanoweb/db'
+import DB from '@nan0web/db'
 
 // Create database instance
 const db = new DB({ root: '/data' })

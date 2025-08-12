@@ -1,13 +1,13 @@
-import { oneOf } from "@nanoweb/types"
+import { FilterString, oneOf } from "@nan0web/types"
 import DocumentStat from "./DocumentStat.js"
 import DocumentEntry from "./DocumentEntry.js"
 import StreamEntry from "./StreamEntry.js"
 
 class DB {
 	encoding = "utf-8"
-	/** @type {Map<uri: string, DocumentEntry>} */
+	/** @type {Map<string, DocumentEntry | false>} */
 	data = new Map()
-	/** @type {Map<uri: string, DocumentStat>} */
+	/** @type {Map<string, DocumentStat>} */
 	meta = new Map()
 	/** @type {boolean} */
 	connected = false
@@ -31,7 +31,7 @@ class DB {
 	 * @param {string} [input.root="."]
 	 * @param {string} [input.cwd="."]
 	 * @param {boolean} [input.connected=false]
-	 * @param {Map<string, DocumentEntry>} [input.data=new Map()]
+	 * @param {Map<string, DocumentEntry | false>} [input.data=new Map()]
 	 * @param {Map<string, DocumentStat>} [input.meta=new Map()]
 	 * @param {DB[]} [input.dbs=[]]
 	 */
@@ -74,6 +74,11 @@ class DB {
 		return this.meta.has("?loaded")
 	}
 
+	/**
+	 * Attaches another DB instance
+	 * @param {DB} db - Database to attach
+	 * @returns {void}
+	 */
 	attach(db) {
 		if (!(db instanceof DB)) {
 			throw new TypeError("It is possible to attach only DB or extended databases")
@@ -81,6 +86,11 @@ class DB {
 		this.dbs.push(db)
 	}
 
+	/**
+	 * Detaches a database
+	 * @param {DB} db - Database to detach
+	 * @returns {DB[]|boolean} Array of detached database or false if not found
+	 */
 	detach(db) {
 		const index = this.dbs.findIndex((d) => d.root === db.root && d.cwd === db.cwd)
 		if (index < 0) {
@@ -95,15 +105,17 @@ class DB {
 	 * @returns {DB}
 	 */
 	extract(uri) {
-		const root = ("." === this.root ? "" : this.root + "/")
-		return new this.constructor({
+		const root = String("." === this.root ? "" : this.root + "/").replace(/\/{2,}/g, "/")
+		const Class = /** @type {typeof DB} */ (this.constructor)
+		const prefix = String(uri).replace(/\/+$/, '') + "/"
+		return new Class({
 			root: root + uri,
 			data: new Map(Array.from(this.data.entries()).filter(
-				([key]) => key.startsWith(uri)
-			).map(([key, value]) => [key.replace(uri, ""), value])),
+				([key]) => key.startsWith(prefix)
+			).map(([key, value]) => [key.replace(prefix, ""), value])),
 			meta: new Map(Array.from(this.meta.entries()).filter(
-				([key]) => key.startsWith(uri)
-			).map(([key, value]) => [key.replace(uri, ""), value])),
+				([key]) => key.startsWith(prefix)
+			).map(([key, value]) => [key.replace(prefix, ""), value])),
 		})
 	}
 
@@ -146,6 +158,8 @@ class DB {
 	 * @param {boolean} [options.skipStat=false] Skip collecting statistics
 	 * @param {boolean} [options.skipSymbolicLink=false] Skip symbolic links
 	 * @param {Function} [options.filter=identity] Filter by pattern or callback
+	 * @yields {DocumentEntry}
+	 * @returns {AsyncGenerator<DocumentEntry, void, unknown>}
 	 */
 	async *readDir(uri = ".", options = {}) {
 		const {
@@ -155,23 +169,22 @@ class DB {
 			filter = (uri) => true,
 		} = options
 		await this.ensureAccess(uri, "r")
-		if (!filter(uri)) {
+		if (!filter(new FilterString(uri))) {
 			return
 		}
 		const stat = await this.statDocument(uri)
-		// yield new DocumentEntry({ name: uri, stat })
 		if (stat.isDirectory) {
 			const entries = await this.listDir(uri, { depth, skipStat, skipSymbolicLink })
 			const later = []
 			for (const entry of entries) {
 				let path = await this.resolve(uri, entry.name)
-				if (!filter(path)) {
+				if (!filter(new FilterString(path))) {
 					continue
 				}
 				this.data.set(path, false)
 				this.meta.set(path, entry.stat)
 				const element = new DocumentEntry({ name: entry.name, stat: entry.stat, depth, path })
-				if (entry.isDirectory) {
+				if (entry.stat.isDirectory) {
 					yield element
 				} else {
 					later.push(element)
@@ -184,7 +197,7 @@ class DB {
 				if (skipSymbolicLink && entry.stat.isSymbolicLink) {
 					continue
 				}
-				if (entry.isDirectory) {
+				if (entry.stat.isDirectory) {
 					const path = await this.resolve(uri, entry.name)
 					yield* this.readDir(path, { depth: depth + 1, skipStat, skipSymbolicLink, filter })
 				}
@@ -193,16 +206,26 @@ class DB {
 			const name = this.relative(this.root, uri)
 			this.data.set(uri, false)
 			this.meta.set(uri, stat)
-			if (filter(uri)) {
+			if (filter(new FilterString(uri))) {
 				yield new DocumentEntry({ name, stat, depth, path: uri })
 			}
 		}
 	}
 
+	/**
+	 * Reads a specific branch at given depth
+	 * @param {string} uri - URI for the branch
+	 * @param {number} [depth=-1] - Depth of read
+	 * @returns {Promise<AsyncGenerator<DocumentEntry, void, unknown>>}
+	 */
 	async readBranch(uri, depth = -1) {
 		return this.readDir(uri, { depth })
 	}
 
+	/**
+	 * Ensures DB is connected
+	 * @returns {Promise<void>}
+	 */
 	async requireConnected() {
 		if (!this.connected) {
 			await this.connect()
@@ -213,16 +236,18 @@ class DB {
 	}
 
 	/**
-	 * @param {string | (key: string, value: any) => boolean} uri
+	 * Searches for URI matching condition
+	 * @param {string | ((key: string, value: any) => boolean)} uri - Search pattern or callback
+	 * @param {number} [depth=0] - Maximum depth to search
+	 * @yields {string} Full URI path of found documents
 	 * @returns {AsyncGenerator<string, void, unknown>}
 	 */
 	async *find(uri, depth = 0) {
 		await this.requireConnected()
 		if (!this.loaded) {
-			for await (const _ of this.readDir(this.root)) {
-				yield* this.readDir(this.root, { depth: depth + 1 })
-			}
-			this.meta.set("?loaded", true)
+			// @todo fix by reading the directory and returning only uri for each element
+			yield* this.readDir(this.root, { depth: depth + 1 })
+			this.meta.set("?loaded", new DocumentStat())
 		}
 		if ("function" === typeof uri) {
 			for (const [key, value] of this.data) {
@@ -236,6 +261,7 @@ class DB {
 			}
 		}
 	}
+
 	/**
 	 * Connect to database
 	 * @abstract
@@ -246,6 +272,11 @@ class DB {
 		this.connected = true
 	}
 
+	/**
+	 * Gets document content
+	 * @param {string} uri - Document URI
+	 * @returns {Promise<any>} Document content
+	 */
 	async get(uri) {
 		await this.ensureAccess(uri, "r")
 		if (!this.data.has(uri) || false === this.data.get(uri)) {
@@ -255,20 +286,24 @@ class DB {
 		return this.data.get(uri)
 	}
 
+	/**
+	 * Sets document content
+	 * @param {string} uri - Document URI
+	 * @param {any} data - Document data
+	 * @returns {Promise<any>} Document content
+	 */
 	async set(uri, data) {
 		await this.ensureAccess(uri, "w")
 		this.data.set(uri, data)
 		const meta = this.meta.has(uri) ? this.meta.get(uri) : {}
-		this.meta.set(uri, { ...meta, mtime: Date.now() })
+		this.meta.set(uri, new DocumentStat({ ...meta, mtimeMs: Date.now() }))
 		return data
 	}
 
 	/**
-	 * Returns the stat of the document, uses meta (cache) if available.
-	 * @note Must be overwritten by platform specific application.
-	 * @throws
-	 * @param {string} uri
-	 * @returns {Promise<DocumentStat>}
+	 * Gets document statistics
+	 * @param {string} uri - Document URI
+	 * @returns {Promise<DocumentStat | undefined>}
 	 */
 	async stat(uri) {
 		await this.ensureAccess(uri, "r")
@@ -280,41 +315,40 @@ class DB {
 	}
 
 	/**
-	 * Returns the relative path of the resolved path to the cwd,
-	 * @note Must be overwritten by platform specific application.
-	 * @throws
-	 * @param  {...string[]} args
-	 * @return {Promise<string>}
+	 * Resolves path segments to absolute path
+	 * @note Must be overwritten by platform-specific implementation
+	 * @param  {...string} args - Path segments
+	 * @returns {Promise<string>} Resolved absolute path
 	 */
-	resolve(...args) {
+	async resolve(...args) {
 		throw new Error("Not implemented")
 	}
 
 	/**
-	 * Returns the absolute path of the resolved path.
-	 * @note Must be overwritten by platform specific application.
-	 * @param  {...string[]} args
-	 * @return {Promise<string>}
+	 * Gets absolute path
+	 * @note Must be overwritten by platform-specific implementation
+	 * @param  {...string} args - Path segments
+	 * @returns {Promise<string>} Absolute path
 	 */
-	absolute(...args) {
+	async absolute(...args) {
 		throw new Error("Not implemented")
 	}
 
 	/**
-	 * @note Must be overwritten by platform specific application.
-	 * @throws
-	 * @param {string} uri
-	 * @returns {any|undefined}
-	*/
+	 * Loads a document
+	 * @param {string} uri - Document URI
+	 * @param {any} [defaultValue=""] - Default value if document not found
+	 * @returns {Promise<any>}
+	 */
 	async loadDocument(uri, defaultValue = "") {
 		await this.ensureAccess(uri, "r")
 		throw new Error("Not implemented")
 	}
 
 	/**
-	 * @note Must be overwritten by platform specific application.
-	 * @throws
-	 * @param {string} uri
+	 * Saves a document
+	 * @param {string} uri - Document URI
+	 * @param {any} document - Document data
 	 * @returns {Promise<boolean>}
 	 */
 	async saveDocument(uri, document) {
@@ -323,7 +357,9 @@ class DB {
 	}
 
 	/**
-	 * @param {string} uri
+	 * Creates DocumentStat for a specific document
+	 * @note Must be overwritten by platform-specific implementation
+	 * @param {string} uri - Document URI
 	 * @returns {Promise<DocumentStat>}
 	 */
 	async statDocument(uri) {
@@ -332,10 +368,10 @@ class DB {
 	}
 
 	/**
-	 * Writes a chunk of data to a document.
-	 * @param {string} uri
-	 * @param {string} chunk
-	 * @returns {Promise<boolean>}
+	 * Writes data to a document with overwrite
+	 * @param {string} uri - Document URI
+	 * @param {string} chunk - Data to write
+	 * @returns {Promise<boolean>} Success status
 	 */
 	async writeDocument(uri, chunk) {
 		await this.ensureAccess(uri, "w")
@@ -345,8 +381,7 @@ class DB {
 	/**
 	 * Delete document from storage
 	 * @note Must be overwritten by platform specific application
-	 * @param {string} uri
-	 * @param {string} [level='w'] Access level
+	 * @param {string} uri - Document URI
 	 * @returns {Promise<boolean>}
 	 * Always returns false for base implementation not knowing
 	 * to implement delete on top of generic interface
@@ -357,10 +392,10 @@ class DB {
 	}
 
 	/**
-	 * @note Must be overwritten by platform specific application.
-	 * @throws
-	 * @param {string} uri
-	 * @param {string} level The access level, one of r, w, d.
+	 * Ensures access for given URI and level
+	 * @note Must be overwritten by platform specific application
+	 * @param {string} uri - Document URI
+	 * @param {string} [level='r'] Access level
 	 * @returns {Promise<boolean>}
 	 */
 	async ensureAccess(uri, level = "r") {
@@ -374,12 +409,13 @@ class DB {
 		}
 		return true
 	}
+
 	/**
 	 * Synchronize data with persistent storage
 	 * @param {string|undefined} [uri] Optional specific URI to save
 	 * @returns {Promise<string[]>} Array of saved URIs
 	 */
-	async push(uri = null) {
+	async push(uri = undefined) {
 		if (uri) {
 			await this.ensureAccess(uri, "w")
 		} else {
@@ -389,7 +425,7 @@ class DB {
 		}
 		const changed = []
 		for (const [key, value] of this.data) {
-			const meta = this.meta.get(key) ?? {}
+			const meta = this.meta.get(key) ?? { mtimeMs: 0 }
 			const stat = await this.statDocument(key)
 			if (meta.mtimeMs > stat.mtimeMs) {
 				changed.push(key)
@@ -400,9 +436,10 @@ class DB {
 	}
 
 	/**
-	 * @param {string} from
-	 * @param {string} to
-	 * @returns {Promise<boolean>}
+	 * Moves a document from one URI to another URI
+	 * @param {string} from - Source URI
+	 * @param {string} to - Target URI
+	 * @returns {Promise<boolean>} Success status
 	 */
 	async moveDocument(from, to) {
 		await this.ensureAccess(to, "w")
@@ -413,6 +450,7 @@ class DB {
 	}
 
 	/**
+	 * Disconnect from database
 	 * @returns {Promise<void>}
 	 */
 	async disconnect() {
@@ -420,27 +458,30 @@ class DB {
 	}
 
 	/**
-	 * @param {string} uri
-	 * @param {Object} options
-	 * @param {number} [options.depth]
-	 * @param {boolean} [options.skipStat]
-	 * @param {boolean} [options.skipSymbolicLink]
-	 * @returns {Promise<{name: string, isDirectory: boolean}[]>}
+	 * Lists directory entries
+	 * @param {string} uri - Directory URI
+	 * @param {Object} options - List options
+	 * @param {number} [options.depth] - Depth to list
+	 * @param {boolean} [options.skipStat] - Skip statistics collection
+	 * @param {boolean} [options.skipSymbolicLink] - Skip symbolic links
+	 * @returns {Promise<{name: string, stat: DocumentStat, isDirectory: boolean}[]>} Directory entries
 	 */
 	async listDir(uri, { depth = 0, skipStat = false, skipSymbolicLink = false } = {}) {
 		throw new Error("Not implemented")
 	}
 
 	/**
-	 * @param {string} uri
-	 * @param {Object} options
-	 * @param {Function} [options.filter]
-	 * @param {number} [options.limit]
-	 * @param {string} [options.sort]
-	 * @param {string} [options.order]
-	 * @param {boolean} [options.skipStat]
-	 * @param {boolean} [options.skipSymbolicLink]
-	 * @returns {AsyncGenerator<StreamEntry>}
+	 * Push stream of progress state
+	 * @param {string} uri - Starting URI
+	 * @param {object} options - Stream options
+	 * @param {Function} [options.filter] - Filter function
+	 * @param {number} [options.limit] - Limit number of entries
+	 * @param {'name'|'mtime'|'size'} [options.sort] - Sort criteria
+	 * @param {'asc'|'desc'} [options.order] - Sort order
+	 * @param {boolean} [options.skipStat] - Skip statistics
+	 * @param {boolean} [options.skipSymbolicLink] - Skip symbolic links
+	 * @yields {StreamEntry} Progress state
+	 * @returns {AsyncGenerator<StreamEntry, void, unknown>}
 	 */
 	async *findStream(uri, options = {}) {
 		const {
@@ -455,7 +496,7 @@ class DB {
 		let dirs = new Map()
 		/** @type {Map<string, DocumentEntry>} */
 		let top = new Map()
-		/** @type {Map<string, string>} */
+		/** @type {Map<string, Error | null>} */
 		let errors = new Map()
 
 		const sortFn = (a, b) => {
@@ -482,7 +523,7 @@ class DB {
 			/** @type {DocumentEntry} */
 			const last = files[files.length - 2] ?? null
 			const recent = files[files.length - 1]
-			if (recent.isDirectory) {
+			if (recent.stat.isDirectory) {
 				dirs.set(recent.path, recent)
 			} else {
 				if ("" !== recent.parent && !dirs.has(recent.parent)) {
@@ -491,40 +532,47 @@ class DB {
 			}
 			if (last?.parent && last.parent !== recent.parent && dirs.has(last.parent)) {
 				const dir = dirs.get(last.parent)
-				dir.fulfilled = true
-				const topDir = top.get(dir.name)
-				if (topDir) {
-					topDir.fulfilled = true
+				if (dir) {
+					dir.fulfilled = true
+					const topDir = top.get(dir.name)
+					if (topDir) {
+						topDir.fulfilled = true
+					}
 				}
 			}
 			if (recent.depth > 0) {
 				// Calculate progress based on fulfillment of subdirectories the same way as top level directories.
 				// Find the top-level directory for this recent file.
 				let topLevelDirName = recent.name
+				/** @type {DocumentEntry | undefined} */
 				let dir = recent
-				while (dir.parent && dirs.has(dir.parent)) {
+				while (dir?.parent && dirs.has(dir.parent)) {
 					dir = dirs.get(dir.parent)
-					topLevelDirName = dir.name
+					if (dir) {
+						topLevelDirName = dir.name
+					}
 				}
 				// Mark the top-level directory as fulfilled if all its subdirectories are fulfilled.
 				if (top.has(topLevelDirName)) {
 					const topDir = top.get(topLevelDirName)
-					// Find all directories under this top-level directory.
-					const subDirs = Array.from(dirs.values()).filter(
-						d =>
-							d.name !== topLevelDirName &&
-							(d.parent === topLevelDirName || d.name.startsWith(topLevelDirName + "/"))
-					)
-					const allFulfilled =
-						subDirs.length > 0 && subDirs.every(d => d.fulfilled)
-					if (allFulfilled) {
-						topDir.fulfilled = true
+					if (topDir) {
+						// Find all directories under this top-level directory.
+						const subDirs = Array.from(dirs.values()).filter(
+							d =>
+								d.name !== topLevelDirName &&
+								(d.parent === topLevelDirName || d.name.startsWith(topLevelDirName + "/"))
+						)
+						const allFulfilled =
+							subDirs.length > 0 && subDirs.every(d => d.fulfilled)
+						if (allFulfilled) {
+							topDir.fulfilled = true
+						}
 					}
 				}
 				const fulfilledDirs = Array.from(top.values()).filter(dir => dir.fulfilled)
 				progress = top.size ? fulfilledDirs.length / top.size : 0
 			}
-			else if (recent.isDirectory) {
+			else if (recent.stat.isDirectory) {
 				top.set(recent.name, recent)
 			}
 			// Calculate progress based on the number of fulfilled directories
@@ -534,20 +582,19 @@ class DB {
 		}
 		const totalSize = { dirs: 0, files: 0 }
 
-		const startDir = await this.resolve(this.cwd, uri)
 		await this.ensureAccess(uri)
 
 		const files = []
-		for await (const file of this.readDir(startDir, { skipStat, skipSymbolicLink, filter })) {
+		for await (const file of this.readDir(uri, { skipStat, skipSymbolicLink, filter })) {
 			files.push(file)
 			if (file.stat.error) {
 				errors.set(file.path, file.stat.error)
 			}
-			if (file.isDirectory) {
+			if (file.stat.isDirectory) {
 				dirs.set(file.path, file)
 				totalSize.dirs += file.stat.size
 			}
-			totalSize.files += file.isFile ? file.stat.size : 0
+			totalSize.files += file.stat.isFile ? file.stat.size : 0
 			const progress = getProgress(files)
 			const entry = new StreamEntry({
 				file,
@@ -563,6 +610,11 @@ class DB {
 		}
 	}
 
+	/**
+	 * Creates a new DB instance from properties if object provided
+	 * @param {object|DB} props - Properties or DB instance
+	 * @returns {DB}
+	 */
 	static from(props) {
 		if (props instanceof DB) return props
 		return new this(props)

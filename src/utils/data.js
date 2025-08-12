@@ -69,7 +69,7 @@ class Data {
 	/**
 	 * Finds a value in an object by path.
 	 * @static
-	 * @param {string|Array} path - The path to search (as string or array).
+	 * @param {string|string[]} path - The path to search (as string or array).
 	 * @param {Object} obj - The object to search in.
 	 * @returns {*} The found value or undefined.
 	 */
@@ -97,10 +97,10 @@ class Data {
 	/**
 	 * Finds a value in an object by path, optionally skipping scalar values.
 	 * @static
-	 * @param {Array} path - The path to search.
+	 * @param {string[]} path - The path to search.
 	 * @param {Object} obj - The object to search in.
 	 * @param {boolean} [skipScalar=false] - Whether to skip scalar values.
-	 * @returns {Object} Object with found value and path.
+	 * @returns {{value: any, path: string[]}} Object with found value and path.
 	 */
 	static findValue(path, obj, skipScalar = false) {
 		let value
@@ -130,6 +130,7 @@ class Data {
 
 		for (let flatKey in data) {
 			const keys = flatKey.split(Data.OBJECT_DIVIDER)
+			/** @type {string[]} */
 			const path = []
 			for (let i = 0; i < keys.length - 1; i++) {
 				let curr = keys[i]
@@ -137,7 +138,7 @@ class Data {
 				const parent = Data.find(path, result) || result
 				const match = curr.match(noRegExp)
 				if (match) {
-					curr = parseInt(match[1], 10)
+					curr = String(parseInt(match[1], 10))
 				}
 				if (null !== next && next.match(noRegExp)) {
 					parent[curr] = parent[curr] || []
@@ -152,7 +153,7 @@ class Data {
 			}
 			const { value } = Data.findValue(path, result)
 
-			const key = keys.pop()
+			const key = String(keys.pop() ?? "")
 			if (Array.isArray(value)) {
 				const match = key.match(noRegExp)
 				if (match) {

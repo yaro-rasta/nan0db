@@ -19,12 +19,12 @@ class DocumentEntry {
 
 	/**
 	 * @param {object} input
-	 * @param {string} [input.name]
-	 * @param {DocumentStat|object} [input.stat]
-	 * @param {number} [input.depth]
-	 * @param {string} [input.path]
-	 * @param {string} [input.parent]
-	 * @param {boolean} [input.fulfilled]
+	 * @param {string} [input.name=""]
+	 * @param {DocumentStat|object} [input.stat={}]
+	 * @param {number} [input.depth=0]
+	 * @param {string} [input.path=""]
+	 * @param {string} [input.parent=""]
+	 * @param {boolean} [input.fulfilled=false]
 	 */
 	constructor(input = {}) {
 		const {
@@ -44,22 +44,38 @@ class DocumentEntry {
 		this.fulfilled = Boolean(fulfilled)
 
 		if (!this.name && this.path) {
-			this.name = this.path.split("/").pop()
+			this.name = String(this.path.split("/").pop() ?? "")
 		}
 	}
 
+	/**
+	 * Check if entry is a directory
+	 * @returns {boolean}
+	 */
 	get isDirectory() {
 		return !!this.stat.isDirectory
 	}
 
+	/**
+	 * Check if entry is a file
+	 * @returns {boolean}
+	 */
 	get isFile() {
 		return !!this.stat.isFile
 	}
 
+	/**
+	 * Check if entry is a symbolic link
+	 * @returns {boolean}
+	 */
 	get isSymbolicLink() {
 		return !!this.stat.isSymbolicLink
 	}
 
+	/**
+	 * Get string representation of entry
+	 * @returns {string}
+	 */
 	toString() {
 		return [
 			this.isDirectory ? "D"
