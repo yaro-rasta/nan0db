@@ -81,7 +81,7 @@ class Data {
 			if (typeof key?.match === 'function') {
 				const arrayMatch = key.match(new RegExp(`^\\${Data.ARRAY_WRAPPER[0] || ''}(\\d+)\\${Data.ARRAY_WRAPPER[1] || ''}$`))
 				if (arrayMatch) {
-					key = parseInt(arrayMatch[1], 10)
+					key = String(parseInt(arrayMatch[1], 10))
 				}
 			}
 			const next = acc[key]

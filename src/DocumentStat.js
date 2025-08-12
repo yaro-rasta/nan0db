@@ -106,11 +106,17 @@ class DocumentStat {
 		this.nlink = nlink
 		this.rdev = rdev
 		this.uid = uid
+		// @ts-ignore
 		this.isBlockDevice = "function" === typeof isBlockDevice ? isBlockDevice.bind(input)() : isBlockDevice
+		// @ts-ignore
 		this.isDirectory = "function" === typeof isDirectory ? isDirectory.bind(input)() : isDirectory
+		// @ts-ignore
 		this.isFile = "function" === typeof isFile ? isFile.bind(input)() : isFile
+		// @ts-ignore
 		this.isFIFO = "function" === typeof isFIFO ? isFIFO.bind(input)() : isFIFO
+		// @ts-ignore
 		this.isSocket = "function" === typeof isSocket ? isSocket.bind(input)() : isSocket
+		// @ts-ignore
 		this.isSymbolicLink = "function" === typeof isSymbolicLink ? isSymbolicLink.bind(input)() : isSymbolicLink
 		this.error = error
 	}

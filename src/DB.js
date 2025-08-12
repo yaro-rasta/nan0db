@@ -246,6 +246,7 @@ class DB {
 		await this.requireConnected()
 		if (!this.loaded) {
 			// @todo fix by reading the directory and returning only uri for each element
+			// @ts-ignore
 			yield* this.readDir(this.root, { depth: depth + 1 })
 			this.meta.set("?loaded", new DocumentStat())
 		}
@@ -527,7 +528,7 @@ class DB {
 				dirs.set(recent.path, recent)
 			} else {
 				if ("" !== recent.parent && !dirs.has(recent.parent)) {
-					throw new Error([ "Directory not found", recent.parent ].join(": "))
+					throw new Error(["Directory not found", recent.parent].join(": "))
 				}
 			}
 			if (last?.parent && last.parent !== recent.parent && dirs.has(last.parent)) {
