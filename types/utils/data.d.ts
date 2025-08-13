@@ -38,8 +38,11 @@ export default Data;
  */
 declare class Data {
     /** @comment #dev/data.md */
+    /** @type {string} */
     static OBJECT_DIVIDER: string;
+    /** @type {string} */
     static ARRAY_WRAPPER: string;
+    /** @type {number} */
     static MAX_DEEP_UNFLATTEN: number;
     /**
      * Resets the array wrapper to default value.

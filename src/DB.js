@@ -3,7 +3,12 @@ import DocumentStat from "./DocumentStat.js"
 import DocumentEntry from "./DocumentEntry.js"
 import StreamEntry from "./StreamEntry.js"
 
+/**
+ * Base database class for document storage and retrieval
+ * @class
+ */
 class DB {
+	/** @type {string} */
 	encoding = "utf-8"
 	/** @type {Map<string, DocumentEntry | false>} */
 	data = new Map()
@@ -64,6 +69,7 @@ class DB {
 	}
 
 	/**
+	 * Returns whether the database directory has been loaded
 	 * @returns {boolean}
 	 * Returns state of ?loaded marker in meta Map
 	 * After .connect() and .readDir() the marker is placed as {mtime: true}
@@ -142,6 +148,10 @@ class DB {
 		throw new Error("Not implemented")
 	}
 
+	/**
+	 * Get string representation of the database
+	 * @returns {string}
+	 */
 	toString() {
 		return this.constructor.name + " " + this.root + " [" + this.encoding + "]"
 	}
@@ -322,17 +332,26 @@ class DB {
 	 * @returns {Promise<string>} Resolved absolute path
 	 */
 	async resolve(...args) {
-		throw new Error("Not implemented")
+		return args.filter(Boolean).join("/")
+	}
+
+	/**
+	 * Resolves path segments to absolute path synchronously
+	 * @param  {...string} args - Path segments
+	 * @returns {string} Resolved absolute path
+	 */
+	resolveSync(...args) {
+		return args.filter(Boolean).join("/")
 	}
 
 	/**
 	 * Gets absolute path
 	 * @note Must be overwritten by platform-specific implementation
 	 * @param  {...string} args - Path segments
-	 * @returns {Promise<string>} Absolute path
+	 * @returns {string} Absolute path
 	 */
-	async absolute(...args) {
-		throw new Error("Not implemented")
+	absolute(...args) {
+		return this.resolveSync(this.cwd, ...args)
 	}
 
 	/**

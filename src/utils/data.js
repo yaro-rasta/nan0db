@@ -4,8 +4,11 @@
  */
 class Data {
 	/** @comment #dev/data.md */
+	/** @type {string} */
 	static OBJECT_DIVIDER = '/'
+	/** @type {string} */
 	static ARRAY_WRAPPER = '[]'
+	/** @type {number} */
 	static MAX_DEEP_UNFLATTEN = 99
 
 	/**

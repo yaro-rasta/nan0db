@@ -2,6 +2,7 @@ import DocumentEntry from "./DocumentEntry.js"
 
 /**
  * Represents a stream entry with progress information
+ * @class
  */
 class StreamEntry {
 	/** @type {DocumentEntry} */
@@ -20,6 +21,7 @@ class StreamEntry {
 	totalSize
 
 	/**
+	 * Creates a new StreamEntry instance
 	 * @param {object} input
 	 * @param {DocumentEntry|object} [input.file={}]
 	 * @param {DocumentEntry[]|object[]} [input.files=[]]

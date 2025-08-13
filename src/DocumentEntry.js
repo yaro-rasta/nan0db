@@ -2,6 +2,7 @@ import DocumentStat from "./DocumentStat.js"
 
 /**
  * Represents a document entry in the filesystem
+ * @class
  */
 class DocumentEntry {
 	/** @type {string} */
@@ -18,6 +19,7 @@ class DocumentEntry {
 	fulfilled
 
 	/**
+	 * Creates a new DocumentEntry instance
 	 * @param {object} input
 	 * @param {string} [input.name=""]
 	 * @param {DocumentStat|object} [input.stat={}]

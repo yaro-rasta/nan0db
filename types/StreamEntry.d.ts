@@ -1,9 +1,11 @@
 export default StreamEntry;
 /**
  * Represents a stream entry with progress information
+ * @class
  */
 declare class StreamEntry {
     /**
+     * Creates a new StreamEntry instance
      * @param {object} input
      * @param {DocumentEntry|object} [input.file={}]
      * @param {DocumentEntry[]|object[]} [input.files=[]]

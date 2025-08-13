@@ -1,4 +1,8 @@
 export default DocumentStat;
+/**
+ * Represents statistics for a document in the filesystem
+ * @class
+ */
 declare class DocumentStat {
     /**
      * Creates DocumentStat instance from input
@@ -7,6 +11,7 @@ declare class DocumentStat {
      */
     static from(input: object | DocumentStat): DocumentStat;
     /**
+     * Creates a new DocumentStat instance
      * @param {object} input
      * @param {number} [input.atimeMs=0]
      * @param {number} [input.btimeMs=0]

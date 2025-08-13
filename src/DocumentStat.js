@@ -1,3 +1,7 @@
+/**
+ * Represents statistics for a document in the filesystem
+ * @class
+ */
 class DocumentStat {
 	/** @type {number} */
 	atimeMs
@@ -45,6 +49,7 @@ class DocumentStat {
 	error
 
 	/**
+	 * Creates a new DocumentStat instance
 	 * @param {object} input
 	 * @param {number} [input.atimeMs=0]
 	 * @param {number} [input.btimeMs=0]

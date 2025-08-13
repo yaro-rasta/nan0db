@@ -318,11 +318,17 @@ suite("DB", () => {
 		})
 
 		it.todo('should yield URIs matching function (fs version)', async () => {
+			const mockData = new Map([
+				['file1.txt', 'content1'],
+				['file2.md', 'content2'],
+				['file3.txt', 'content3']
+			])
 			const dbInstance = new MockDB({ data: mockData })
+			dbInstance.meta.set("?loaded", new DocumentStat())
 
 			const results = []
 			for await (const entry of dbInstance.find((key) => key.endsWith('.txt'))) {
-				results.push(entry.path)
+				results.push(entry)
 			}
 
 			assert.deepStrictEqual(results, ['file1.txt', 'file3.txt'])
@@ -367,12 +373,6 @@ suite("DB", () => {
 	})
 
 	describe('resolve', () => {
-		it('should throw not implemented error', async () => {
-			const baseDb = new DB()
-			const fn = async () => await baseDb.resolve('path')
-			await assert.rejects(fn, /not implemented/i)
-		})
-
 		it("should resolve the path", async () => {
 			const path = await db.resolve("a/b", "c")
 			assert.equal(path, "a/b/c")
@@ -380,10 +380,11 @@ suite("DB", () => {
 	})
 
 	describe('absolute', () => {
-		it('should throw not implemented error', async () => {
+		it('should throw not implemented error', () => {
 			const baseDb = new DB()
-			const fn = async () => await baseDb.absolute('path')
-			await assert.rejects(fn, /not implemented/i)
+			const abs = baseDb.absolute('path')
+
+			assert.equal(abs, "./path")
 		})
 	})
 

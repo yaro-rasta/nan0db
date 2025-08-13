@@ -1,4 +1,8 @@
 export default DB;
+/**
+ * Base database class for document storage and retrieval
+ * @class
+ */
 declare class DB {
     /**
      * Creates a new DB instance from properties if object provided
@@ -31,6 +35,7 @@ declare class DB {
         meta?: Map<string, DocumentStat> | undefined;
         dbs?: DB[] | undefined;
     });
+    /** @type {string} */
     encoding: string;
     /** @type {Map<string, DocumentEntry | false>} */
     data: Map<string, DocumentEntry | false>;
@@ -45,6 +50,7 @@ declare class DB {
     /** @type {DB[]} */
     dbs: DB[];
     /**
+     * Returns whether the database directory has been loaded
      * @returns {boolean}
      * Returns state of ?loaded marker in meta Map
      * After .connect() and .readDir() the marker is placed as {mtime: true}
@@ -86,6 +92,10 @@ declare class DB {
      * @returns {string} Relative path
      */
     relative(from: string, to: string): string;
+    /**
+     * Get string representation of the database
+     * @returns {string}
+     */
     toString(): string;
     /**
      * Reading the current directory or branch as async generator to follow progress.
@@ -162,12 +172,18 @@ declare class DB {
      */
     resolve(...args: string[]): Promise<string>;
     /**
+     * Resolves path segments to absolute path synchronously
+     * @param  {...string} args - Path segments
+     * @returns {string} Resolved absolute path
+     */
+    resolveSync(...args: string[]): string;
+    /**
      * Gets absolute path
      * @note Must be overwritten by platform-specific implementation
      * @param  {...string} args - Path segments
-     * @returns {Promise<string>} Absolute path
+     * @returns {string} Absolute path
      */
-    absolute(...args: string[]): Promise<string>;
+    absolute(...args: string[]): string;
     /**
      * Loads a document
      * @param {string} uri - Document URI

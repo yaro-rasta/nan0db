@@ -1,6 +1,7 @@
 export default DocumentEntry;
 /**
  * Represents a document entry in the filesystem
+ * @class
  */
 declare class DocumentEntry {
     /**
@@ -10,6 +11,7 @@ declare class DocumentEntry {
      */
     static from(input: object | DocumentEntry): DocumentEntry;
     /**
+     * Creates a new DocumentEntry instance
      * @param {object} input
      * @param {string} [input.name=""]
      * @param {DocumentStat|object} [input.stat={}]
